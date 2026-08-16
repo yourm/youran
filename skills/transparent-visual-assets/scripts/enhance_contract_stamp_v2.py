@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Sharpen visible red ink in a scanned contract seal.
+"""Extract red contract-seal ink while preserving fine character counters.
 
-This is a deterministic enhancement pass for low-resolution scans. It separates
-red ink from black/grey document text, bridges tiny scan breaks, and exports a
-larger antialiased RGBA PNG. It never invents missing characters.
+This deterministic pass separates red chroma from neutral document text. It
+does not dilate, close, blur, sharpen, or redraw the seal, because those steps
+can merge adjacent Chinese strokes and make readable characters look muddy.
 """
 from __future__ import annotations
 
@@ -14,33 +14,24 @@ import numpy as np
 from PIL import Image
 
 
-def _extract_alpha(rgb: np.ndarray, boost: float) -> np.ndarray:
+def _extract_alpha(
+    rgb: np.ndarray,
+    method: str,
+    low: float,
+    high: float,
+    gamma: float,
+) -> np.ndarray:
     red, green, blue = (rgb[:, :, i].astype(np.float32) for i in range(3))
-    redness = red - (green + blue) / 2.0
-
-    try:
+    if method == "lab":
         import cv2
+        lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB)
+        signal = lab[:, :, 1].astype(np.float32) - 128.0
+    else:
+        signal = red - (green + blue) / 2.0
 
-        # A small median pass removes isolated red scanner specks without
-        # erasing the narrow strokes in the circular text.
-        redness = cv2.medianBlur(np.clip(redness, 0, 255).astype(np.float32), 3)
-        soft = np.clip((redness - 2.5) / 68.0 * 255.0 * boost, 0, 255)
-        ink = (redness >= 12.0).astype(np.uint8) * 255
-        ink = cv2.morphologyEx(
-            ink,
-            cv2.MORPH_CLOSE,
-            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)),
-        )
-        # Preserve anti-aliased edges while giving broken glyph strokes a
-        # stable opaque core. This is deliberately modest to avoid swelling
-        # the outer ring.
-        core = ink.astype(np.float32) * 0.90
-        # Keep a crisp core and a soft photographic edge. A final blur here
-        # would make small Chinese strokes look foggy after supersampling.
-        alpha = np.maximum(soft, core)
-        return np.clip(alpha, 0, 255).astype(np.uint8)
-    except ImportError:
-        return np.clip((redness - 3.0) / 76.0 * 255.0 * boost, 0, 255).astype(np.uint8)
+    matte = np.clip((signal - low) / max(high - low, 1e-6), 0.0, 1.0)
+    matte = np.power(matte, gamma)
+    return np.rint(matte * 255.0).astype(np.uint8)
 
 
 def main() -> None:
@@ -54,9 +45,12 @@ def main() -> None:
         metavar=("LEFT", "TOP", "RIGHT", "BOTTOM"),
         required=True,
     )
-    parser.add_argument("--scale", type=int, default=4)
-    parser.add_argument("--padding", type=int, default=16)
-    parser.add_argument("--boost", type=float, default=1.10)
+    parser.add_argument("--scale", type=int, default=2)
+    parser.add_argument("--padding", type=int, default=10)
+    parser.add_argument("--method", choices=("lab", "difference"), default="lab")
+    parser.add_argument("--low", type=float)
+    parser.add_argument("--high", type=float)
+    parser.add_argument("--gamma", type=float, default=1.25)
     args = parser.parse_args()
     if args.scale < 1:
         raise SystemExit("--scale must be at least 1")
@@ -64,9 +58,12 @@ def main() -> None:
     source = Image.open(args.input).convert("RGB")
     crop = source.crop(tuple(args.crop))
     rgb = np.asarray(crop, dtype=np.uint8)
-    alpha = _extract_alpha(rgb, args.boost)
+    default_low, default_high = ((2.0, 52.0) if args.method == "lab" else (3.0, 135.0))
+    low = default_low if args.low is None else args.low
+    high = default_high if args.high is None else args.high
+    alpha = _extract_alpha(rgb, args.method, low, high, args.gamma)
 
-    ys, xs = np.where(alpha > 4)
+    ys, xs = np.where(alpha > 2)
     if len(xs) == 0:
         raise SystemExit("No red seal ink detected; adjust the crop or inspect the source.")
     left = max(int(xs.min()) - args.padding, 0)
