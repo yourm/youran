@@ -1,6 +1,6 @@
 ---
 name: transparent-visual-assets
-description: Generate transparent-background raster assets with Codex image generation plus deterministic cleanup. Use when the user wants a PNG sticker, icon, mascot, sprite, UI asset, or web-ready visual element with transparent background, or asks to remove/avoid a generated image background while preserving the subject.
+description: Generate transparent-background raster assets with Codex image generation plus deterministic cleanup. Use for PNG stickers, icons, mascots, sprites, web-ready visual elements, and scanned contract or company-seal extraction where the colored seal must be preserved while paper and overprinted grey/black text become transparent.
 ---
 
 # Transparent Visual Assets
@@ -29,6 +29,10 @@ description: Generate transparent-background raster assets with Codex image gene
 3. 目视检查：主体完整、没有阴影地面、没有漂浮杂点、主体颜色不接近背景色。
 4. 用 `scripts/prepare_transparent_asset.py` 清理纯色背景、裁切透明边缘、输出 PNG。
 5. 打开结果或检查报告，确认透明角落、主体不被误删。
+
+## 扫描合同章
+
+当输入是合同扫描件、印章压在正文或签章表格上时，不要直接使用通用模型抠图。读取 [references/contract-stamp.md](references/contract-stamp.md)，按颜色优势分离红色印迹；需要重复处理时运行 `scripts/extract_contract_stamp.py`。保留原图和原色备份，不补画缺失的印章文字。
 
 ## 生图提示词要点
 
