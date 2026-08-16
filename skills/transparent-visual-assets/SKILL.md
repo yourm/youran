@@ -32,7 +32,7 @@ description: Generate transparent-background raster assets with Codex image gene
 
 ## 扫描合同章
 
-当输入是合同扫描件、印章压在正文或签章表格上时，不要直接使用通用模型抠图。读取 [references/contract-stamp.md](references/contract-stamp.md)，按颜色优势分离红色印迹；需要重复处理时运行 `scripts/extract_contract_stamp.py`。如果用户要求“字体清晰/高清/放大”，运行技能目录中的 `enhance_contract_stamp_v2.py`，以 2–4 倍透明 PNG 输出并保留抗锯齿边缘。保留原图和原色备份，不补画缺失的印章文字。
+当输入是合同扫描件、印章压在正文或签章表格上时，不要直接使用通用模型抠图。读取 [references/contract-stamp.md](references/contract-stamp.md)，按颜色优势分离红色印迹；需要重复处理时运行 `scripts/extract_contract_stamp.py`。如果用户要求“字体清晰/高清”，运行技能目录中的 `enhance_contract_stamp_v2.py`。默认保留原尺寸，只在版面确实需要时输出 2 倍版本；禁止对文字做膨胀、闭运算、模糊、锐化或硬阈值填充。保留原图和原色备份，不补画缺失的印章文字。
 
 ## 生图提示词要点
 
